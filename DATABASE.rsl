@@ -1,0 +1,17 @@
+scheme DATABASE =
+class
+  type
+    Person,
+    Database = Person-set
+  value
+    empty : Database,
+    register : Person >< Database -> Database,
+    check : Person >< Database -> Bool
+  axiom 
+    all p : Person, db : Database :-
+      (empty is {}) /\
+      (register(p,db) is {p} union db) /\
+      (check(p, db) is p isin db)
+  test_case
+    [ t1 ] 1 + 2
+end

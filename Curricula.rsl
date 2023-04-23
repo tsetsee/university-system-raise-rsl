@@ -1,0 +1,45 @@
+Course, Department
+
+scheme Curricula =
+class
+  object
+    C : Course,
+    D : Department
+  type
+    Semester :: id_sem : Nat,
+    Co_Course = C.ID_Subject -m-> Semester,
+    Opt_in_Semester = Semester -m-> Courses_Sem,
+    Courses_Sem = C.ID_Subject-set >< C.Courses -> Bool,
+    Curriculum0 ::
+      depart_c : D.ID_Department <-> chg_depart_c
+      available_Cr : Bool <-> chg_available_Cr
+      intrvl_c : C.Interval <-> chg_intrvl_c
+      course_compulsory : Co_Course <-> chg_course_comp
+      course_optional : Co_Course <-> chg_course_opt
+      selection_c : Opt_in_Semester <-> chg_selectionc,
+    Curriculum = {| cr : Curriculum0 :- is_wf_Curriculum(cr) |},
+    ID_Curriculum,
+    Currs = ID_Curriculum -m-> Curriculum
+  value
+    is_wf_Curriculum : Curriculum0 -> Bool
+      is_wf_Curriculum(cr) is 
+        let co = course_optional(cr), cc = course_compulsory(cr) in
+          rng co <<= dom selection_c(cr) /\
+          dom cc inter dom co = {} /\
+          (available_Cr(cr) => cc union co ~= [])
+        end,
+    course_semester_in_curr : Curriculum >< C.Courses -> Bool
+      course_semester_in_curr(cr, course) is
+        let co = course_optional(cr) in
+          (
+            all ids : C.ID_Subject :-
+              ids isin dom co => 
+                let sem = co(ids) in
+                  exists sids : C.ID_Subject :-
+                    (all id : C.ID_Subject :- id isin sids => co(id) = sem) /\
+                    ids isin sids /\
+                    sids <<= dom co /\ selection_c(cr)(sem)(sids, course)
+                end
+          )
+        end
+end

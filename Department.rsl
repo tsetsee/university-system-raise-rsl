@@ -1,0 +1,18 @@
+Faculty
+
+scheme Department =
+class
+  object
+    F : Faculty
+  type
+    ID_Department,
+    Department :: faculty : F.ID_Faculty <-> chg_facl,
+    Depts = ID_Department -m-> Department
+  value
+    is_wf_Facul_Depart : F.Facul >< Depts -> Bool
+    is_wf_Facul_Depart(fac, dept) is
+      (
+        all dep : Department :- 
+          dep isin rng dept => faculty(dep) isin dom fac
+      )
+end

@@ -1,0 +1,8 @@
+scheme Faculty =
+class
+  type
+    Faculty,
+    ID_Faculty,
+    Facul = ID_Faculty -m-> Faculty
+end
+

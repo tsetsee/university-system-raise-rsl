@@ -1,0 +1,68 @@
+Department
+
+scheme Course =
+class
+  object
+    D : Department
+  type
+    Credit = {| r : Real :- r >= 0.0 |},
+    Nat0 = {| n : Nat :- n ~= 0 |},
+    HourCred :: hour : Nat0 credit : Credit,
+    Type_sub,
+    Type_sub_HC = Type_sub -m-> HourCred,
+    Level = {| n: Nat :- n <= maxlevel |},
+    ID_Subject,
+    Subjectlevels = ID_Subject -m-> Level,
+    Opt_prereq = ID_Subject-set -> Bool,
+    Interval0 :: min : Nat0 max: Nat0,
+    Interval = {| intr : Interval0 :- min(intr) <= max(intr) |},
+    Subject0 ::
+      depart_s : D.ID_Department <-> chg_depart_s
+      available_Co : Bool <-> chg_available_Co
+      type_sub : Type_sub_HC <-> chg_type_sub
+      intrvl_s : Interval <-> chg_intrvl_s
+      prereq : Subjectlevels <-> chg_prereq
+      selection_s : Opt_prereq <-> chg_select
+      special : Bool <-> chg_special,
+    Subject = {| sub : Subject0 :- is_wf_Subject(sub) |},
+    Courses0 = ID_Subject -m-> Subject,
+    Courses = {| cm: Courses0 :- is_wf_Courses(cm) |}
+  value
+    maxlevel: Nat0,
+    is_wf_Subject : Subject0 -> Bool
+      is_wf_Subject(sub) is 
+        (available_Co(sub) => type_sub(sub) ~= []) /\
+        (
+          exists sids : ID_Subject-set :- 
+            sids <<= dom prereq(sub) /\ selection_s(sub)(sids)
+        ),
+    is_wf_Courses : Courses0 -> Bool
+      is_wf_Courses(course) is 
+        (
+          all ids : ID_Subject :- 
+            ids isin dom course => 
+              dom prereq(course(ids)) << dom course /\ ~ depend_on(ids, ids, course)
+        ),
+    depend_on : ID_Subject >< ID_Subject >< Courses -> Bool
+      depend_on(id1, id2, course) is
+        id1 isin dom course /\ 
+          let prs = dom prereq(course(id1)) in 
+            (
+              id2 isin prs \/ (
+                exists id : ID_Subject :- id isin prs /\ depend_on(id, id2, course)
+              )
+            )
+          end,
+    is_wf_Courses_Depart : Courses >< D.Depts -> Bool
+      is_wf_Courses_Depart(course, dept) is
+        (
+          all ids : ID_Subject :-
+            ids isin dom course => depart_s(course(ids)) isin dom dept
+        ),
+    courseset_in_dept : D.ID_Department >< Courses -> ID_Subject-set
+      courseset_in_dept(idd, course) is
+        { ids |
+          ids : ID_Subject :- 
+            ids isin dom course /\ idd = depart_s(course(ids))
+        }
+end
