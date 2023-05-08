@@ -1,0 +1,48 @@
+Department
+
+scheme Teacher =
+class
+    object
+        D: Department
+    type
+        Cc_Course_type0 = ID_Subject -m-> Type_sub-set,
+        Cc_Course_type = {| ccm: Cc_Course_type0 :- {} ~isin rng ccm |},
+        TimePeriod,
+        Teaching_type0 = Type_sub -m-> (TimePeriod -m-> Nat0),
+        Teaching_type = {|tt: Teaching_type0 :- is_wf_Teaching_type(tt)|},
+        Now_Course_type0 = ID_Subject -m-> Teaching_type,
+        Now_Course_type =
+            {|ncm: Now_Course_type0 :- is_wf_Now_Course_type(ncm)|},
+        Personal_Details_t,
+        Fin_Course_type0 = ID_Subject -m-> (Type_sub -m-> Nat0),
+        Fin_Course_type =  {|fcm : Fin_Course_type0 :- [] ~isin rng fcm|},
+        Status == available|left|absent,
+        Teacher0 ::
+            person_t : Personal_Details_t
+            depart_t : D.ID_Department <-> chg_depart_t
+            can_course : Cc_Course_type <-> chg_can_course
+            now_course : Now_Course_type <-> chg_now_course
+            finished_course : Fin_Course_type <-> chg_fin_course
+            status_t : Status <-> chg_status_t
+    value
+        is_wf_Teaching_type : Teaching_type0 -> Bool
+        is_wf_Teaching_type(tt) is
+            tt ~= [] /\
+            (
+                all ts, ts1 : Type_sub :-
+                {ts, ts1} <<= dom tt /\ ts ~= ts1 =>
+                dom tt(ts) inter tt(ts1) = {}
+            ),
+        is_wf_Now_Course_type : Now_Course_type0 -> Bool
+        is_wf_Now_Course_type(ncm) is
+            (
+                all ids, ids1 : ID_Subject :-
+                    {ids, ids1} <<= dom ncm /\ ids ~= ids1 =>
+                    (
+                        all ts, ts1: Type_sub :-
+                            ts isin dom ncm(ids) /\ ts1 isin dom ncm(ids1) =>
+                            dom ncm(ids)(ts) inter dom ncm(ids1)(ts1) = {}
+                    )
+            ),
+        teach_intrl : Personal_Details_t -> Interval
+end

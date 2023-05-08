@@ -41,5 +41,53 @@ class
                     sids <<= dom co /\ selection_c(cr)(sem)(sids, course)
                 end
           )
-        end
+        end,
+    courseset_in_dept : D.ID_Department >< C.Courses -> ID_Subject-set
+    courseset_in_dept(idd, course) is 
+      {ids |
+        ids : ID_Subject :-
+          ids isin dom course /\ idd = depart_s(course(ids))
+      },
+      is_wf_Curr_Course_Dept : Currs >< C.Courses >< D.Depts -> Bool
+      is_wf_Curr_Course_Dept(curr, course, dept) is 
+        (
+          all cr : Curriculum :-
+            cr isin rng curr =>
+            let idd = depart_c(cr), co_cr = dom courses_in_curr(cr) in
+              idd isin dom dept /\
+              is_wf_Curr_Course(cr, course) /\
+              (
+                co_cr ~= {} =>
+                co_cr inter courseset_in_dept(idd, course) ~= {}
+              )
+            end
+        ),
+      is_wf_Curr_Course : Curriculum >< Courses -> Bool
+      is_wf_Curr_Course(cr, course) is
+        (
+          let ccm = courses_in_curr(cr), co_cr = dom ccm in
+            co_cr <<= dom course /\
+            (
+              all ids : ID_Subject :-
+                ids isin co_cr =>
+                let sub = course(ids), prq = dom prereq(sub) in
+                  (
+                    exists sids : ID_Subject-set :-
+                    sids <<= prq /\
+                    selection_s(sub)(sids) /\
+                    sids <<= co_cr /\
+                    (
+                      all ids1 : ID_Subject :-
+                        ids1 isin sids =>
+                        id_sem(ccm(ids1)) <= id_sem(ccm(ids))
+                    )
+                  )
+                end /\
+                course_semester_in_curr(cr, course)
+            )
+          end
+        ),
+      courses_in_curr : Curriculum -> Co_Course
+      courses_in_curr(cr) is
+        course_compulsory(cr) union course_optional(cr)
 end

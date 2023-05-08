@@ -1,0 +1,400 @@
+scheme Main =
+class
+  -- Faculty
+  type
+    Faculty,
+    ID_Faculty,
+    Facul = ID_Faculty -m-> Faculty
+  -- Department
+  type
+    ID_Department,
+    Department :: faculty : ID_Faculty <-> chg_facl,
+    Depts = ID_Department -m-> Department
+  value
+    is_wf_Facul_Depart : Facul >< Depts -> Bool
+    is_wf_Facul_Depart(fac, dept) is
+      (
+        all dep : Department :- 
+          dep isin rng dept => faculty(dep) isin dom fac
+      )
+  -- Course
+  type
+    Credit = {| r : Real :- r >= 0.0 |},
+    Nat0 = {| n : Nat :- n ~= 0 |},
+    HourCred :: hour : Nat0 credit : Credit,
+    Type_sub,
+    Type_sub_HC = Type_sub -m-> HourCred,
+    Level = {| n: Nat :- n <= maxlevel |},
+    ID_Subject,
+    Subjectlevels = ID_Subject -m-> Level,
+    Opt_prereq = ID_Subject-set -> Bool,
+    Interval0 :: min : Nat0 max: Nat0,
+    Interval = {| intr : Interval0 :- min(intr) <= max(intr) |},
+    Subject0 ::
+      depart_s : ID_Department <-> chg_depart_s
+      available_Co : Bool <-> chg_available_Co
+      type_sub : Type_sub_HC <-> chg_type_sub
+      intrvl_s : Interval <-> chg_intrvl_s
+      prereq : Subjectlevels <-> chg_prereq
+      selection_s : Opt_prereq <-> chg_select
+      special : Bool <-> chg_special,
+    Subject = {| sub : Subject0 :- is_wf_Subject(sub) |},
+    Courses0 = ID_Subject -m-> Subject,
+    Courses = {| cm: Courses0 :- is_wf_Courses(cm) |}
+  value
+    maxlevel: Nat0,
+    is_wf_Subject : Subject0 -> Bool
+      is_wf_Subject(sub) is 
+        (available_Co(sub) => type_sub(sub) ~= []) /\
+        (
+          exists sids : ID_Subject-set :- 
+            sids <<= dom prereq(sub) /\ selection_s(sub)(sids)
+        ),
+    is_wf_Courses : Courses0 -> Bool
+      is_wf_Courses(course) is 
+        (
+          all ids : ID_Subject :- 
+            ids isin dom course => 
+              dom prereq(course(ids)) << dom course /\ ~ depend_on(ids, ids, course)
+        ),
+    depend_on : ID_Subject >< ID_Subject >< Courses -> Bool
+      depend_on(id1, id2, course) is
+        id1 isin dom course /\ 
+          let prs = dom prereq(course(id1)) in 
+            (
+              id2 isin prs \/ (
+                exists id : ID_Subject :- id isin prs /\ depend_on(id, id2, course)
+              )
+            )
+          end,
+    is_wf_Courses_Depart : Courses >< Depts -> Bool
+      is_wf_Courses_Depart(course, dept) is
+        (
+          all ids : ID_Subject :-
+            ids isin dom course => depart_s(course(ids)) isin dom dept
+        ),
+    courseset_in_dept : ID_Department >< Courses -> ID_Subject-set
+      courseset_in_dept(idd, course) is
+        { ids |
+          ids : ID_Subject :- 
+            ids isin dom course /\ idd = depart_s(course(ids))
+        }
+  -- Curricula
+  type
+    Semester :: id_sem : Nat,
+    Co_Course = ID_Subject -m-> Semester,
+    Opt_in_Semester = Semester -m-> Courses_Sem,
+    Courses_Sem = ID_Subject-set >< Courses -> Bool,
+    Curriculum0 ::
+      depart_c : ID_Department <-> chg_depart_c
+      available_Cr : Bool <-> chg_available_Cr
+      intrvl_c : Interval <-> chg_intrvl_c
+      course_compulsory : Co_Course <-> chg_course_comp
+      course_optional : Co_Course <-> chg_course_opt
+      selection_c : Opt_in_Semester <-> chg_selectionc,
+    Curriculum = {| cr : Curriculum0 :- is_wf_Curriculum(cr) |},
+    ID_Curriculum,
+    Currs = ID_Curriculum -m-> Curriculum
+  value
+    is_wf_Curriculum : Curriculum0 -> Bool
+      is_wf_Curriculum(cr) is 
+        let co = course_optional(cr), cc = course_compulsory(cr) in
+          rng co <<= dom selection_c(cr) /\
+          dom cc inter dom co = {} /\
+          (available_Cr(cr) => cc union co ~= [])
+        end,
+    course_semester_in_curr : Curriculum >< Courses -> Bool
+      course_semester_in_curr(cr, course) is
+        let co = course_optional(cr) in
+          (
+            all ids : ID_Subject :-
+              ids isin dom co => 
+                let sem = co(ids) in
+                  exists sids : ID_Subject :-
+                    (all id : ID_Subject :- id isin sids => co(id) = sem) /\
+                    ids isin sids /\
+                    sids <<= dom co /\ selection_c(cr)(sem)(sids, course)
+                end
+          )
+        end,
+      is_wf_Curr_Course : Curriculum >< Courses -> Bool
+      is_wf_Curr_Course(cr, course) is
+        (
+          let ccm = courses_in_curr(cr), co_cr = dom ccm in
+            co_cr <<= dom course /\
+            (
+              all ids : ID_Subject :-
+                ids isin co_cr =>
+                let sub = course(ids), prq = dom prereq(sub) in
+                  (
+                    exists sids : ID_Subject-set :-
+                    sids <<= prq /\
+                    selection_s(sub)(sids) /\
+                    sids <<= co_cr /\
+                    (
+                      all ids1 : ID_Subject :-
+                        ids1 isin sids =>
+                        id_sem(ccm(ids1)) <= id_sem(ccm(ids))
+                    )
+                  )
+                end /\
+                course_semester_in_curr(cr, course)
+            )
+          end
+        ),
+      courses_in_curr : Curriculum -> Co_Course
+      courses_in_curr(cr) is
+        course_compulsory(cr) union course_optional(cr)
+      -- Teacher
+    type
+        Cc_Course_type0 = ID_Subject -m-> Type_sub-set,
+        Cc_Course_type = {| ccm: Cc_Course_type0 :- {} ~isin rng ccm |},
+        TimePeriod,
+        Teaching_type0 = Type_sub -m-> (TimePeriod -m-> Nat0),
+        Teaching_type = {|tt: Teaching_type0 :- is_wf_Teaching_type(tt)|},
+        Now_Course_type0 = ID_Subject -m-> Teaching_type,
+        Now_Course_type =
+            {|ncm: Now_Course_type0 :- is_wf_Now_Course_type(ncm)|},
+        Personal_Details_t,
+        Fin_Course_type0 = ID_Subject -m-> (Type_sub -m-> Nat0),
+        Fin_Course_type =  {|fcm : Fin_Course_type0 :- [] ~isin rng fcm|},
+        Status == available|left|absent,
+        Teacher0 ::
+            person_t : Personal_Details_t
+            depart_t : ID_Department <-> chg_depart_t
+            can_course : Cc_Course_type <-> chg_can_course
+            now_course : Now_Course_type <-> chg_now_course
+            finished_course : Fin_Course_type <-> chg_fin_course
+            status_t : Status <-> chg_status_t,
+        Teacher = {|t: Teacher0 :- is_valid_Teacher(t)|},
+        ID_Teacher,
+        Teachers = ID_Teacher -m-> Teacher
+    value
+        is_wf_Teaching_type : Teaching_type0 -> Bool
+        is_wf_Teaching_type(tt) is
+            tt ~= [] /\
+            (
+                all ts, ts1 : Type_sub :-
+                {ts, ts1} <<= dom tt /\ ts ~= ts1 =>
+                dom tt(ts) inter tt(ts1) = {}
+            ),
+        is_wf_Now_Course_type : Now_Course_type0 -> Bool
+        is_wf_Now_Course_type(ncm) is
+            (
+                all ids, ids1 : ID_Subject :-
+                    {ids, ids1} <<= dom ncm /\ ids ~= ids1 =>
+                    (
+                        all ts, ts1: Type_sub :-
+                            ts isin dom ncm(ids) /\ ts1 isin dom ncm(ids1) =>
+                            dom ncm(ids)(ts) inter dom ncm(ids1)(ts1) = {}
+                    )
+            ),
+        teach_intrl : Personal_Details_t -> Interval,
+        is_valid_Teacher : Teacher0 -> Bool
+        is_valid_Teacher(t) is
+            dom now_course(t) <<= dom can_course(t) /\
+            dom finished_course(t) <<= dom can_course(t) /\
+            (
+                all ids : ID_Subject :-
+                    (
+                        ids isin dom now_course(t) =>
+                        dom now_course(t)(ids) <<= can_course(t)(ids)
+                    ) /\
+                    (
+                        ids isin dom finished_course(t) =>
+                        dom finished_course(t)(ids) <<= can_course(t)(ids)
+                    )
+            ) /\
+            (status_t(t) ~= available => now_course(t) = []),
+        is_wf_Teacher_Course_Depart : Teachers >< Courses >< Depts -> Bool
+        is_wf_Teacher_Course_Depart(teach, course, dept) is
+            (
+                all te: Teacher :-
+                    te isin rng teach =>
+                    depart_t(te) isin dom dept /\
+                    is_valid_course_type(can_course(te), course) /\
+                    available_course(now_course(te), course)
+            ),
+        is_valid_course_type: Cc_Course_type >< Courses -> Bool
+        is_valid_course_type(ct, cm) is
+            dom ct <<= dom cm /\
+            (
+                all ids: ID_Subject :-
+                    ids isin ct => ct(ids) <<= dom type_sub(cm(ids))
+            ),
+        available_course : Now_Course_type >< Courses -> Bool
+        available_course(nct, course) is
+            (
+                all ids : ID_Subject :-
+                    ids isin dom nct =>
+                    ids isin dom course /\ available_Co(course(ids))
+            )
+    -- Students
+    type
+        Personal_Details_s,
+        Year = Nat0,
+        Student0 ::
+            person_s : Personal_Details_s
+            qualific : ID_Curriculum <-> chg_curr
+            part_completed : Cc_Course_type <-> chg_part_completed
+            completed_c : Subjectlevels <-> chg_compl_c
+            current_c : Now_Course_type <-> chg_current_c
+            status_s : Status <-> chg_status_s
+            year : Year <-> chg_year,
+        Student = {|st: Student0 :- is_valid_Student(st)|},
+        ID_Student,
+        Students = ID_Student -m-> Student
+    value
+        is_valid_Student : Student0 -> Bool
+        is_valid_Student(st) is
+            status_s(st) ~= available => current_c(st) = [],
+        is_wf_Curr_Course_Student : Currs >< Courses >< Students -> Bool
+        is_wf_Curr_Course_Student(curr, course, stud) is
+            (
+                all st : Student :-
+                    st isin rng stud =>
+                    qualific(st) isin dom curr /\
+                    dom completed_c(st) <<= dom course /\
+                    dom part_completed(st) <<= dom course /\
+                    (
+                        all ids : ID_Subject :-
+                            part_completed(st)(ids) << dom type_sub(course(ids))
+                    ) /\
+                    dom current_c(st) <<= dom course /\
+                    (
+                        all ids : ID_Subject :-
+                            dom current_c(st)(ids) <<= dom type_sub(course(ids))
+                    ) /\
+                    available_course(current_c(st), course)
+            )
+    -- Rooms
+    type
+        RoomType,
+        Room :: capacity : Nat0 room_type : RoomType,
+        ID_Room,
+        Rooms = ID_Room -m-> Room
+    value
+        compatible_room : ID_Subject >< Type_sub >< RoomType -> Bool
+    -- Timetable
+    type
+        Rooms_TT = {|rl: ID_Room-list :- rl ~= <..> /\ non_repeating(rl)|},
+        TPRL0 = TimePeriod -m-> Rooms_TT,
+        TPRL = {|tm : TPRL0 :- tm ~= []|},
+        TsTPRL0 = Type_sub -m-> TPRL,
+        TsTPRL = {|tm : TsTPRL0 :- is_wf_tstprl(tm)|},
+        Timetable0 = ID_Subject -m-> TsTPRL,
+        Timetable = {|tt: Timetable0 :- is_wf_Timetable(tt)|}
+    value
+        non_repeating : ID_Room-list -> Bool
+        non_repeating(tm) is card elems tm = len tm,
+        is_wf_tstprl : TsTPRL0 -> Bool
+        is_wf_tstprl(tm) is
+            tm ~= [] /\
+            (
+                all ts, ts1 : Type_sub, tp : TimePeriod :-
+                    {ts, ts1} <<= dom tm /\
+                    ts ~= ts1 /\ tp isin dom tm(ts) inter dom tm(ts1) =>
+                    elems (tm(ts)(tp)) inter elems (tm(ts1)(tp)) = {}
+            ),
+        is_wf_Timetable : TimeTable -> Bool
+        is_wf_Timetable(tt) is
+            (
+                all ids, ids1 : ID_Subject, ts, ts1 : Type_sub, tp: TimePeriod
+                {ids, ids1} <<= dom tt /\
+                ids ~= ids1 /\
+                ts isin dom tt(ids) /\
+                ts1 isin dom tt(ids1) /\
+                tp isin dom tt(ids)(ts) inter dom tt(ids1)(ts1) =>
+                elems tt(ids)(ts)(tp) inter elems tt(ids1)(ts1)(tp) = {}
+            ),
+        courseset_at_Tita : Courses -> ID_Subject-set
+        courseset_at_Tita(course) is
+            {ids |
+            ids : ID_Subject :-
+                ids isin dom course /\
+                let sub = course(ids) in
+                    available_Co(sub) /\ ~special(sub)
+                end
+            },
+        check_course_in_TT : Timetable >< Courses -> Bool
+        check_course_in_TT(tt, course) is
+            dom tt <<= courseset_at_Tita(course) /\
+            (
+                all ids : ID_Subject :-
+                    ids isin dom tt =>
+                    (
+                        all ts : Type_sub :-
+                            ts isin dom tt(ids) =>
+                            ts isin dom type_sb(course(ids))
+                    )
+            )
+        check_student_in_TT : Timetable >< Students -> Bool
+        check_student_in_TT(tt, stud) is
+            (
+                all st: Student :-
+                    st isin rng stud => check_now_in_TT(tt, current_c(st))
+            ),
+        check_teacher_in_TT : Timetable >< Teachers -> Bool
+        check_teacher_in_TT(tt, teach) is
+            (
+                all tch : Teacher :-
+                    tch isin rng teach => check_now_in_TT(tt, now_course(tch))
+            ),
+        check_now_in_TT : Timetable >< Now_Course_type -> Bool
+        check_now_in_TT(tt, nct) is
+            (
+                all ids : ID_Subject, ts : Type_sub :-
+                    ids isin dom nct /\
+                    ts isin dom nct(ids) /\ nct(ids)(ts) ~= [] =>
+                    (
+                        ids isin dom tt /\
+                        ts isin dom tt(ids) /\ compatible(nct(ids)(ts), tt(ids)(ts))
+                    )
+            ),
+        compatible: (TimePeriod -m-> Nat0) >< TPRL -> Bool
+        compatible(tpm, tprl) is
+            dom tpm <<= dom tprl /\
+            (
+                all tp : TimePeriod :- tp isin dom tpm => tpm(tp) <= len tprl(tp)
+            ),
+        check_room_in_TT : Timetable >< Rooms >< Students -> Bool
+        check_room_in_TT(tt, room, stud) is
+            (
+                all
+                    ids : ID_Subject,
+                    ts : Type_sub,
+                    tp : TimePeriod,
+                    rt : RoomType,
+                    n : Nat0
+                :-
+                    ids isin dom tt /\
+                    ts isin dom tt(ids) /\
+                    tp isin dom tt(ids)(ts) /\ n isin inds tt(ids)(ts)(tp) =>
+                    compatible_room(ids, ts, rt) /\
+                    let rl = tt(ids)(ts)(tp) in
+                        rl(n) isin dom room /\
+                        card students_group_each_course(ids, ts, tp, n, stud) <=
+                        capacity(room(rl(n)))
+                    end
+            ),
+        students_group_each_course:
+            ID_Subject >< Type_sub >< TimePeriod >< Nat >< Students -> ID_Student-set
+        students_group_each_course(ids, ts, tp, nG, stud) is
+            {
+                idst|
+                idst : ID_Student /\
+                idst isin dom stud /\
+                let st = stud(idst) in
+                    ids isin dom current_c(st) /\
+                    ts isin dom current_c(st)(ids) /\
+                    tp isin dom current_c(st)(ids)(ts) /\
+                    current_c(st)(ids)(ts)(tp) = nG
+                end
+            },
+        consistent_Timetable:
+            Timetable >< Courses >< Currs >< Students >< Teachers >< Rooms -> Bool
+        consistent_Timetable(tt, course, curr, stud, teach, room) is
+            check_course_in_TT(tt, course) /\
+            check_student_in_TT(tt, stud) /\
+            check_teacher_in_TT(tt, teach) /\ check_room_in_TT(tt, room, stud)
+end
