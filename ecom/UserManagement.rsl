@@ -11,12 +11,12 @@ class
       valid_credentials(credentials, username, password) is
         credentials(username) = password,
      
-    login : Username >< Password >< Credentials -> Bool
+    can_login : Username >< Password >< Credentials -> Bool
       login(username, password, credentials) is 
-        (username isin dom credentials /\ valid_credentials(credentials, username, password))
+        (username isin dom credentials /\ valid_credentials(credentials, username, password)),
 
-  --   register : Username >< Password >< Credentials >< Users -> User
-  --     register(username, password, credentials, users) is 
-  --      users
-  --       username ~isin dom credentials
+    can_register : Username >< Password >< Credentials >< Users -> User
+      register(username, password, credentials, users) is 
+        users(username)
+        pre username ~isin dom credentials
 end
